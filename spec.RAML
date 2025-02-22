@@ -1,0 +1,236 @@
+#%RAML 1.0
+title: Carton Cap API
+
+
+types:
+  Referral:
+    type: object
+    properties:
+      referralId:
+        required: true
+        type: integer
+      originatingUserId:
+        required: true
+        type: integer
+      referreeUserId:
+        required: false
+        type: integer
+      emailAddress: 
+        required: false
+        type: string
+      phoneNumber: 
+        required: false
+        type: string
+      code:
+        required: false
+        type: string
+      lastSent?:
+        required: false
+        type: datetime
+      isSent: 
+        required: false
+        type: boolean
+      isUserCreated: 
+        required: false
+        type: boolean
+      status: 
+        required: false
+        type: string
+        enum: [Created, Sent, User Created, Cancelled]
+    example:
+      referralId: 1
+      originatingUserId: 1
+      createdUserId: null
+      emailAddress: "Johndoe@email.com"
+      phoneNumber: "555-555-5555"
+      code: "X67GH3"
+      lastSent: 2025-02-21T10:00:00.000Z
+      isSent: true
+      isUserCreated: false
+      status: Sent
+
+/referrals:
+  displayName: Referrals
+  get:
+    description: Retrieve all existing referrals for the user.
+    queryParameters:
+      userId:
+        example: "1"
+        type: string
+        description: Use to query all existing referrals for the provided user ID.
+    responses:
+      200:
+        description: Returns list of all referrals created by the user.
+        body:
+          application/json:
+            type: Referral[]
+            example: |
+              [
+                {
+                  "referralId": 1,
+                  "originatingUserId": 1,
+                  "createdUserId": null,
+                  "emailAddress": "Johndoe@email.com",
+                  "phoneNumber": "555-555-5555",
+                  "code": "X67GH3",
+                  "lastSent": null,
+                  "isSent": false,
+                  "isUserCreated": false,
+                  "status": "Created"
+                },
+                {
+                  "referralId": 1,
+                  "originatingUserId": 1,
+                  "createdUserId": 2,
+                  "emailAddress": "Janedoe@email.com",
+                  "phoneNumber": "",
+                  "code": "X67GH3",
+                  "lastSent": "2025-02-21T10:00:00.000Z",
+                  "isSent": true,
+                  "isUserCreated": true,
+                  "status": "Sent"
+                }
+              ]
+      422:
+        description: Validation errors for model or during workflow.
+        body:
+          application/json:
+            type: string
+            example: "Unable to retrieve referrals, user id is not valid." 
+      500:
+        description: Unknown server error occurred while retrieving referrals.
+  post:
+    description: Create a new referral request, should validate required fields are provided, should validate phone number and/or email is provided. Send referral link to provided email and phone. Can use the referral code from the link and compare to the database to check for referree flow. Should default Status to Created and move to sent if the send flow is successful. Should auto create the referral ID for storage and generate the last sent date time when send is successful. 
+    body:
+        application/json:
+          type: Referral
+          example: | 
+            {
+              "referralId": 1,
+              "originatingUserId": 1,
+              "createdUserId": null,
+              "emailAddress": "Johndoe@email.com",
+              "phoneNumber": "555-555-5555",
+              "code": "X67GH3",
+              "isSent": false,
+              "isUserCreated": false
+            }
+          description: Referral object filled in with method to send referral.
+    responses: 
+      200: 
+        description: returns the id of the created referral object.
+        body: 
+          application/json:
+            type: integer
+            example: 1
+            description: Created referral object ID.
+      422:
+        description: Validation errors for model or during workflow.
+        body:
+          application/json:
+            type: string
+            example: "Unable to create referral, phone number or email address must be provided."
+      500:
+        description: Unknown server error occurred while creating.
+  put:
+    description: Update the referral object. Should validate required fields are provided, should validate phone number and/or email is provided. If not sent previously send referral link to provided email and phone. Should block updates when status is beyond Sent.
+    body:
+        application/json:
+          type: Referral
+          example: | 
+            {
+              "referralId": 1,
+              "originatingUserId": 1,
+              "createdUserId": null,
+              "emailAddress": "Johndoe@email.com",
+              "phoneNumber": "555-555-5555",
+              "code": "X67GH3",
+              "isSent": false,
+              "isUserCreated": false
+            }
+          description: Referral object filled in with method to send referral.
+    responses: 
+      200: 
+        description: returns the id of the updated referral object.
+        body: 
+          application/json:
+            type: integer
+            description: Created referral object ID.
+      422:
+        description: Validation errors for model or during workflow.
+        body:
+          application/json:
+            type: string
+            example: "Unable to update referral, user has already accepted the referral."
+      500:
+        description: Unknown server error occurred while updating.
+  delete:
+    description: Cancel a referral, could be a hard delete or a status change and update under the hood. Depends on need to keep the referral for any reason including verifying a link click after the referral was cancelled. Should block the delete if the status is beyond Sent
+    queryParameters:
+      referralId:
+        example: "1"
+        type: string
+        description: Delete the referral for the specific ID.
+    responses: 
+      200:
+        description: Return true when delete was successful. 
+        body:
+          application/json:
+            type: boolean
+      422:
+        description: Validation errors for model or during workflow.
+        body:
+          application/json:
+            type: string
+            example: "Unable to delete referral, user has already accepted the referral."
+      500:
+        description: Unknown server error occurred while deleteing referral. 
+
+
+/referrals/resend:
+  post:
+    description: Resend the referral link to the provided phone number and or email address, if last sent is within 1 hour block the send to prevent mass sends. Should block the resend if the referral is beyond the sent status. 
+    queryParameters:
+      referralId:
+        example: "1"
+        type: string
+        description: Referral ID to be resent
+    responses:
+      200:
+        description: Return true if successful.
+        body:
+          application/json:
+            type: boolean
+      422:
+        description: Validation errors for model or during workflow.
+        body:
+          application/json:
+            type: string
+            example: "Unable to resend referral, please wait at least one hour before sending aditional referrals to the same person."
+      500:
+        description: Unknown server error occurred while resending 
+
+/referrals/check-code:
+  get:
+    description: Check the code that was in the referral link against the created codes from users to confirm its a valid referral code and start the referee flow. When referral code is used and user is generated the corresponding referral should be marked as user created is true and the user id added to the referral.
+    queryParameters:
+      userId:
+        example: "ABC123"
+        type: string
+        description: Use to query all existing referrals for the provided user ID.
+    responses:
+      200:
+        description: returns true if the code exists and false if the code does not
+        body:
+          application/json:
+            type: boolean
+      422:
+        description: Validation errors for model or during workflow.
+        body:
+          application/json:
+            type: string
+            example: "Unable to check code, code is an invalid format."
+      500:
+        description: Unknown server error occurred while checking code.
+
+    
